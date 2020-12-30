@@ -109,17 +109,19 @@ def publiccsv2fhir(csvfile, output_dir, schema_check=False,
     process_start_time = time.time()
     pdir = 1
 
-    # make the output dir
+    # make the output directories
+    organization_dir = os.path.join(output_dir, "Organization")
+    practitioner_dir = os.path.join(output_dir, "Practitioner")
     try:
         os.mkdir(output_dir)
     except:
         pass
     try:
-        os.mkdir(os.path.join(output_dir, "Practitioner"))
+        os.mkdir(practitioner_dir)
     except:
         pass
     try:
-        os.mkdir(os.path.join(output_dir, "Organization"))
+        os.mkdir(organization_dir)
     except:
         pass
 
@@ -154,10 +156,8 @@ def publiccsv2fhir(csvfile, output_dir, schema_check=False,
         tax_display[row[0]] = tax_display[row[0]].strip().strip(',')
 
 
-    practitioner_path = os.path.join(os.path.dirname(__file__),
-                                     "fhir_json_schema", "Practitioner.json")
-    organization_path = os.path.join(os.path.dirname(__file__),
-                                     "fhir_json_schema", "Organization.json")
+    practitioner_path = os.path.join(practitioner_dir, "Practitioner.ndjson")
+    organization_path = os.path.join(organization_dir, "Organization.ndjson")
 
     # Start of opening of csv file to convert and test
     response_dict = OrderedDict()
@@ -171,10 +171,10 @@ def publiccsv2fhir(csvfile, output_dir, schema_check=False,
     error_list = []
 
     # Create the NDJSON writers.
-    out_fh1 = open("Organization.ndjson", 'w')
+    out_fh1 = open(organization_path, 'w')
     organization_writer = ndjson.writer(out_fh1)
-    
-    out_fh2 = open("Practitioner.ndjson", 'w')
+
+    out_fh2 = open(practitioner_path, 'w')
     practitioner_writer = ndjson.writer(out_fh2)
 
     for row in csvhandle:
@@ -400,7 +400,7 @@ def publiccsv2fhir(csvfile, output_dir, schema_check=False,
                         license["coding"] = [
                             {"system": "http://hl7.org/fhir/v2/0203",
                              "code": "MD",
-                             "display": "Medcial license"},                       ]
+                             "display": "Medical license"},                       ]
                         license['value'] = row[license_number_position]
                         license['state'] = row[license_state_position].upper()
                         license['issuer'] = row[identifier_issuer_position].upper()
@@ -435,11 +435,20 @@ def publiccsv2fhir(csvfile, output_dir, schema_check=False,
                         organization_writer.writerow(r)
                         organization_count += 1
 
+            #print(json.dumps(r, indent=4))
             #fp = os.path.join(subdir, fn)
             #ofile = open(fp, 'w')
             #ofile.writelines(json.dumps(r, indent=4))
             #ofile.close()
-            
+
+            # Streaming lines from ndjson file:
+            #with open(organization_path) as f:
+            #    reader = ndjson.reader(f)
+
+            #    for organization in reader:
+            #        print("Organization:")
+            #        print(organization)
+
             if schema_check:
                 if row[1] == "1":
                     results = json_schema_check.json_schema_check(

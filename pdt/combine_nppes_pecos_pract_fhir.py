@@ -13,6 +13,10 @@ import pprint
 from datetime import datetime
 from pymongo import MongoClient
 from collections import OrderedDict
+import logging
+
+FORMAT = '%(levelname)s: %(asctime)s: line %(lineno)d: %(message)s'
+logging.basicConfig(format=FORMAT)
 
 
 MONGO_HOST = "127.0.0.1"
@@ -38,15 +42,17 @@ def make_pecos_nppes_fhir_docs(database_name="pecos"):
     # INCORPORATE ADDRESSES and other ID's
     # ----------------------------------------------------
             try:
-                match_bases = base_pecos.find({'NPI': bdoc['identifier'][0]['value']})
-            except KeyError:
+                match_bases = base_pecos.find({'NPI': bdoc['id']})
+            except KeyError as e:
+                logging.warn("KeyError: %s" % e)
                 continue
             m_addresses = []
             identifiers = []
             for matches in match_bases:
                 try:
                     match_addresses = addresses.find({'ENRLMT_ID': matches['ENRLMT_ID']})
-                except KeyError:
+                except KeyError as e:
+                    logging.warn("KeyError: %s" % e)
                     continue
                 for ma in match_addresses:
                     # Create fhir address from pecos addresses
@@ -90,9 +96,9 @@ def make_pecos_nppes_fhir_docs(database_name="pecos"):
             # Match up npi numbers between pecos and nppes
             try:
                 match_compiled_individuals = compiled_individuals_collection.find(
-                {'NPI': bdoc['identifier'][0]['value']})
-            except KeyError:
-                continue
+                {'NPI': int(bdoc['id'])})
+            except KeyError as e:
+                logging.warn("KeyError: %s" % e)
             extensions = []
             for mci in match_compiled_individuals:
                 try:
@@ -121,11 +127,14 @@ def make_pecos_nppes_fhir_docs(database_name="pecos"):
                     # wrap in list, and remove duplicates
                     if affiliation not in extensions:
                         extensions.append(affiliation)
-                except KeyError:
+                except KeyError as e:
+                    logging.warn("KeyError: %s" % e)
                     continue
 
+            if i % 1000 == 0:
+                print(i)
 
-            fhir_practitioner.update_one({"_id":bdoc['_id']}, {"$pushAll": {"extension": extensions, "address": m_addresses, "identifier": identifiers}}, upsert=True)
+            fhir_practitioner.update_one({"_id":bdoc['_id']}, {"$push": {"extension": {"$each":extensions}, "address":{"$each":m_addresses}, "identifier": {"$each":identifiers}}}, upsert=True)
             # if d['resourceType'] == "Organization":
             #     compiled_organizations_collection.insert(d)
             # elif d['resourceType'] == "Practitioner":
